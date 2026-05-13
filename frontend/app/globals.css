@@ -1,0 +1,76 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap');
+@import "tailwindcss";
+
+:root {
+  --navy: #002147;
+  --navy-light: #003170;
+  --navy-dark: #001430;
+  --green: #008751;
+  --green-light: #00a562;
+  --green-dark: #006b3f;
+  --white: #ffffff;
+  --amber: #d97706;
+  --amber-light: #fef3c7;
+  --red: #dc2626;
+  --red-light: #fef2f2;
+  --slate: #f4f6f9;
+  --slate-dark: #e2e8f0;
+  --muted: #64748b;
+  --border: #cbd5e1;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --font-display: 'Playfair Display', serif;
+  --font-body: 'IBM Plex Sans', sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+  --background: #f4f6f9;
+  --foreground: #0f172a;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font-body);
+  background: var(--slate);
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.gov-stripe {
+  background: repeating-linear-gradient(
+    90deg,
+    var(--green) 0px, var(--green) 8px,
+    var(--white) 8px, var(--white) 12px,
+    var(--navy) 12px, var(--navy) 20px,
+    var(--white) 20px, var(--white) 24px
+  );
+  height: 5px;
+  width: 100%;
+}
+
+.badge-locked { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; padding: 2px 10px; border-radius: 4px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; display: inline-block; }
+.badge-pending { background: #eff6ff; color: #1e40af; border: 1px solid #93c5fd; padding: 2px 10px; border-radius: 4px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; display: inline-block; }
+.badge-disbursed { background: #f0fdf4; color: #166534; border: 1px solid #86efac; padding: 2px 10px; border-radius: 4px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; display: inline-block; }
+.badge-blocked { background: #fef2f2; color: #991b1b; border: 1px solid #fca5a5; padding: 2px 10px; border-radius: 4px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; display: inline-block; }
+.badge-flagged { background: #fff7ed; color: #9a3412; border: 1px solid #fdba74; padding: 2px 10px; border-radius: 4px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; display: inline-block; }
+
+.pulse-green { animation: pulse-green 2s infinite; }
+@keyframes pulse-green {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(0,135,81,0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(0,135,81,0); }
+}
+.fade-in { animation: fadeIn 0.4s ease-in-out; }
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.slide-up { animation: slideUp 0.3s ease-out; }
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+input, select, textarea { font-family: var(--font-body); }
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--slate); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
