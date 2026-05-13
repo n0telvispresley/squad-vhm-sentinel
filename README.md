@@ -124,20 +124,53 @@ npm run dev
 
 ```text
 vhm-sentinel/
-├── backend/                  # FastAPI, AI Anomaly Engine, Squad Logic
-│   ├── main.py               # Entry point & API routes
-│   ├── security.py           # VPN Detection & Velocity Logic
-│   └── services/
-│       └── squad.py          # Squad API integration
-│
-├── frontend/                 # Next.js, Liveness UI, Dashboard
-│   ├── app/                  # Login, Verify, Admin, Success pages
-│   ├── components/           # UI Components
-│   └── lib/                  # API handlers & utilities
-│
-├── docs/                     # Architecture diagrams & specifications
-├── README.md                 # Master project documentation
-└── .env.example              # Environment variable template
+.
+├── README.md
+├── backend
+│   ├── main.py
+│   ├── requirements.txt
+│   ├── security_service.py
+│   ├── services
+│   └── squad_integration.py
+├── docs
+└── frontend
+    ├── AGENTS.md
+    ├── CLAUDE.md
+    ├── README.md
+    ├── app
+    │   ├── admin
+    │   │   └── page.jsx
+    │   ├── alert
+    │   │   └── page.jsx
+    │   ├── components
+    │   │   └── GovHeader.jsx
+    │   ├── dashboard
+    │   │   └── page.jsx
+    │   ├── dispute
+    │   │   └── page.jsx
+    │   ├── favicon.ico
+    │   ├── globals.css
+    │   ├── layout.jsx
+    │   ├── lib
+    │   │   └── data.js
+    │   ├── page.jsx
+    │   ├── success
+    │   │   └── page.jsx
+    │   └── verify
+    │       └── page.jsx
+    ├── eslint.config.mjs
+    ├── next.config.ts
+    ├── package-lock.json
+    ├── package.json
+    ├── postcss.config.mjs
+    ├── public
+    │   ├── file.svg
+    │   ├── globe.svg
+    │   ├── next.svg
+    │   ├── vercel.svg
+    │   └── window.svg
+    ├── src
+    └── tsconfig.json
 ```
 
 ---
