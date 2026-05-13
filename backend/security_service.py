@@ -1,46 +1,34 @@
 import httpx
-from fastapi import HTTPException, Request
-from sklearn.ensemble import IsolationForest
-import numpy as np
+from haversine import haversine, Unit
+from fastapi import HTTPException
 
 class SecurityService:
     def __init__(self):
-        self.IP_API_KEY = "YOUR_IPXAPI_KEY"
-        self.BASE_URL = "https://ipxapi.com/api/ip"
-        # Dummy model for anomaly scoring; in production, load a pre-trained pickle
-        self.anomaly_model = IsolationForest(contamination=0.1)
+        # Using ip-api.com (Free for development, no key needed)
+        self.ip_api_url = "http://ip-api.com/json"
 
-    async def verify_ip_integrity(self, request: Request):
-        client_ip = request.client.host
+    async def get_ip_intel(self, ip: str):
         async with httpx.AsyncClient() as client:
-            response = await client.get(
-                f"{self.BASE_URL}/{client_ip}", 
-                headers={"Authorization": f"Bearer {self.IP_API_KEY}"}
-            )
-            data = response.json()
-            
-            is_vpn = data.get("is_vpn", False)
-            is_proxy = data.get("is_proxy", False)
-            country = data.get("country_code", "NG")
+            # Standard IP lookup to check country and hosting/proxy status
+            # Note: 127.0.0.1 will return 'fail' locally; the code handles this gracefully.
+            try:
+                response = await client.get(f"{self.ip_api_url}/{ip}?fields=status,countryCode,proxy,hosting")
+                return response.json()
+            except Exception:
+                return {"status": "fail"}
 
-            if is_vpn or is_proxy or country != "NG":
-                raise HTTPException(
-                    status_code=403, 
-                    detail="Access Denied: VPN/Proxy detected. Please connect via a local residential network."
-                )
-        return True
-
-    def check_payroll_anomalies(self, record, median_salary, ipis_mapping):
+    def verify_device_binding(self, provided_hash, registered_hash):
         """
-        Logic: Flag multi-linked IPPIS IDs or unauthorized jumps.
+        Feature 3: Device Fingerprint Binding[cite: 216].
+        Compares the hardware hash from the frontend to the one in the registry.
         """
-        # 1. Check for duplicate bank account mapping
-        if len(ipis_mapping.get(record['bank_account'], [])) > 1:
-            return "FLAGGED: Linked to multiple IPPIS IDs"
+        if not registered_hash:
+            return "NEW_DEVICE"
+        return "RECOGNIZED" if provided_hash == registered_hash else "UNRECOGNIZED"
 
-        # 2. Check for unauthorized salary jump
-        jump = (record['amount'] - median_salary) / median_salary
-        if jump > 0.30:
-            return "FLAGGED: Unauthorized salary jump > 30%"
-
-        return "CLEAN"
+    def calculate_velocity(self, last_loc, current_loc, time_delta_hours):
+        # Feature 7: Impossible Travel logic [cite: 259, 264]
+        distance = haversine(last_loc, current_loc, unit=Unit.KILOMETERS)
+        if time_delta_hours <= 0: return 0, distance
+        speed = distance / time_delta_hours
+        return speed, distance
