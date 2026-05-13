@@ -1,10 +1,14 @@
 fastapi
 uvicorn
-httpx
+python-multipart
+python-dotenv
 scikit-learn
 numpy
 pandas
 haversine
 python-jose[cryptography]
-python-multipart
-python-dotenv
+passlib[bcrypt]
+httpx
+aiohttp
+requests
+jinja2

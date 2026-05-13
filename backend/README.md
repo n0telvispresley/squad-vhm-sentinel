@@ -1,15 +1,17 @@
 # 🛡️ VHM Sentinel — Backend Core
 
-This is the FastAPI backend for the **VHM Sentinel Payroll Integrity System**.  
+This is the FastAPI backend for the **VHM Sentinel Payroll Integrity System**.
+
 It handles:
 
 - Geo-location anomaly detection
 - Velocity & impossible-travel analysis
 - Device verification
 - Audit trail logging
-- Secure Squad API payout orchestration
+- Secure Squad API disbursement
+- USSD accessibility via Africa's Talking
 
-The backend acts as the **Intelligent Security Layer** between employee verification and salary disbursement.
+The backend acts as the **Intelligent Security Layer** between employee verification and salary release.
 
 ---
 
@@ -30,7 +32,7 @@ FRONTEND_URL=http://localhost:3000
 
 ## 2. Install Dependencies
 
-Ensure your virtual environment is active:
+Ensure your virtual environment is active.
 
 ### Mac/Linux
 
@@ -48,7 +50,7 @@ pip install -r requirements.txt
 
 # 🚀 Running the Server
 
-Because the source files are located inside the `backend/` directory, run the server from the root of the project to ensure all modules are discoverable.
+Run the following command from the root of the project:
 
 ```bash
 uvicorn backend.main:app --reload
@@ -56,74 +58,109 @@ uvicorn backend.main:app --reload
 
 ---
 
-# 📖 Interactive API Documentation
+# 📖 Interactive Documentation
 
-Once the server is running, visit:
+| Documentation | URL                        |
+| ------------- | -------------------------- |
+| Swagger UI    | http://127.0.0.1:8000/docs |
 
-| Documentation | URL                         |
-| ------------- | --------------------------- |
-| Swagger UI    | http://127.0.0.1:8000/docs  |
-| ReDoc         | http://127.0.0.1:8000/redoc |
-
-> The root endpoint (`/`) automatically redirects to Swagger UI for easier API testing during development.
+> The root endpoint (`/`) redirects automatically to Swagger UI for easier development and testing.
 
 ---
 
-# 🔒 Security Gate Logic
+# 📱 USSD Testing (Africa's Talking)
 
-## 1. Geo-Checkin
+VHM Sentinel includes a lightweight USSD interface for accessibility on low-bandwidth devices.
 
-Silently captures and logs the employee’s baseline coordinates during authentication.
+## Local Testing Workflow
 
-### Endpoint
+### 1. Start the Backend
 
-```http
-POST /session/geo-checkin
+```bash
+uvicorn backend.main:app --reload
 ```
 
-### Purpose
+---
 
-- Prevent coordinate spoofing
-- Establish baseline verification location
-- Build audit trail history
+### 2. Expose Localhost Using a Tunnel
+
+Example using LocalTunnel:
+
+```bash
+lt --port 8000
+```
+
+Or using Ngrok:
+
+```bash
+ngrok http 8000
+```
 
 ---
 
-## 2. Verify
+### 3. Configure Africa's Talking Callback URL
 
-Runs the core integrity analysis engine.
+Set your callback URL to:
 
-### Endpoint
+```text
+{tunnel_url}/ussd
+```
+
+Example:
+
+```text
+https://example.loca.lt/ussd
+```
+
+---
+
+## 🔐 USSD Security Lock
+
+USSD payout access is restricted.
+
+A user must complete a successful:
 
 ```http
 POST /verify
 ```
 
-### Verification Checks
+session within the last **24 hours** before USSD payout requests are allowed.
+
+This prevents unauthorized offline payout attempts.
+
+---
+
+# 🔒 Security Gate Logic
+
+## 1. Verify (`/verify`)
+
+Runs the core integrity verification engine.
+
+### Checks Performed
 
 #### 🌍 Geo Velocity (Haversine)
 
 Calculates travel speed between:
 
-- Last successful verification
+- Last known location
 - Current verification request
 
-Flags impossible travel events exceeding safe thresholds.
+Flags impossible travel scenarios.
 
 Example:
 
 ```text
-Abuja → Houston in 86 minutes = Fraud Risk
+Lagos → London in 45 minutes = Fraud Risk
 ```
 
 ---
 
 #### 🌐 IP Intelligence
 
-Checks:
+Checks for:
 
-- Country lock enforcement
-- VPN detection
+- Country lock violations
+- VPN usage
 - Proxy anonymization
 - Suspicious IP routing
 
@@ -137,17 +174,11 @@ Validates the submitted:
 device_hash
 ```
 
-against the registered device fingerprint.
+against the employee’s registered device fingerprint.
 
 ---
 
-## 3. Payout Authorization
-
-### Endpoint
-
-```http
-POST /payout
-```
+## 2. Payout (`/payout`)
 
 Requires a valid:
 
@@ -155,12 +186,51 @@ Requires a valid:
 release_token
 ```
 
-generated only after successful verification.
+generated only after a successful `/verify` session.
 
-This token acts as the secure handshake between:
+This creates a secure handshake between:
 
-- Verification success state
-- Squad payout execution
+- Identity verification
+- Financial disbursement
+
+---
+
+## 3. Dispute Portal (`/dispute`)
+
+Allows employees to report suspicious or unauthorized payroll changes.
+
+### Endpoint
+
+```http
+POST /dispute
+```
+
+Submitted disputes are visible to administrators at:
+
+```http
+GET /admin/disputes
+```
+
+---
+
+# 🧪 Demo Data
+
+## ✅ Standard User
+
+| Field       | Value            |
+| ----------- | ---------------- |
+| Employee ID | `emp_001`        |
+| Phone       | `+2348012345678` |
+
+---
+
+## 🚨 Fraud Scenario
+
+| Field           | Value                     |
+| --------------- | ------------------------- |
+| Employee ID     | `emp_002`                 |
+| Scenario        | Last seen in London       |
+| Expected Result | Velocity breach triggered |
 
 ---
 
@@ -170,43 +240,25 @@ This token acts as the secure handshake between:
 | -------------------- | ------------------------------ |
 | Geo Intelligence     | Detect spoofed coordinates     |
 | Velocity Engine      | Detect impossible travel       |
-| Device Fingerprint   | Prevent account sharing        |
+| Device Fingerprint   | Prevent credential sharing     |
 | VPN Guard            | Block anonymized traffic       |
-| Audit Trail          | Log every verification attempt |
+| Audit Trail          | Log verification activity      |
+| USSD Session Lock    | Prevent offline fraud attempts |
 | Release Token System | Prevent unauthorized payouts   |
 
 ---
 
-# ⚠️ Demo Environment Note
-
-For the hackathon demonstration:
-
-```python
-is_within_release_window = True
-```
-
-is enabled by default to simplify payout testing and live demonstrations.
-
-In production, this should enforce:
-
-- Expiry windows
-- One-time payout authorization
-- Replay attack prevention
-
----
-
-# 📂 Suggested Backend Structure
+# 📂 Backend Structure
 
 ```text
 backend/
-├── main.py               # FastAPI entrypoint
-├── security.py           # Velocity & fraud logic
-├── squad.py              # Squad payout integration
-├── models.py             # Pydantic schemas
-├── database.py           # Session & audit storage
-├── middleware.py         # Security middleware
+├── main.py                 # FastAPI entrypoint
+├── security_service.py             # Velocity & fraud logic
+├── squad_integration.py                # Squad payout integration
+├── .env
 ├── requirements.txt
-└── .env
+├── README.md
+
 ```
 
 ---
@@ -225,7 +277,7 @@ Every payout is backed by:
 
 - Geospatial validation
 - Device integrity
-- Human liveness
+- Human verification
 - Cryptographic authorization
 
 ---
