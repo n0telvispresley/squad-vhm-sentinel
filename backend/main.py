@@ -6,7 +6,8 @@ import datetime
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from pathlib import Path
+from pathlib import Path#
+import uvicorn
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -770,3 +771,8 @@ async def ussd_handler(request: Request):
         response = "END Invalid selection."
 
     return Response(content=response, media_type="text/plain")
+
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 10000))
+    uvicorn.run("main:app", host="0.0.0.0", port=port)
