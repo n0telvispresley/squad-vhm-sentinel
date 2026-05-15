@@ -1,22 +1,44 @@
 'use client';
+export const dynamic = 'force-dynamic';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import GovHeader from '../components/GovHeader';
-import { CURRENT_USER, SALARY_CYCLES, PAYROLL_CHANGES, formatNaira } from '../lib/data';
+import { SALARY_CYCLES_SEED, PAYROLL_CHANGES_SEED, formatNaira, USER_DATABASE } from '../lib/data';
+// store functions loaded dynamically inside useEffect to avoid SSR issues
 
 export default function DashboardPage() {
   const router = useRouter();
   const [geoPing, setGeoPing] = useState(null);
-  const [deviceStatus, setDeviceStatus] = useState('Recognised');
-  const [networkStatus, setNetworkStatus] = useState('Normal');
+  const [user, setUser] = useState(null);
+
   const today = new Date();
-  const currentCycle = SALARY_CYCLES[0];
+  const [salaryStatus, setSalaryStatusState] = useState('locked');
+  const [squadRef, setSquadRef] = useState(null);
+  const [payrollChanges, setPayrollChanges] = useState([]);
+
+  const currentCycle = { month: "May 2026", status: salaryStatus, squad_ref: squadRef, window_start: "2026-05-25", window_end: "2026-05-28" };
   const isInWindow = today.getDate() >= 25 && today.getDate() <= 28;
   const daysToWindow = Math.max(0, 25 - today.getDate());
 
+
   useEffect(() => {
-    const stored = sessionStorage.getItem('otp_geo');
-    if (stored) setGeoPing(JSON.parse(stored));
+    // Load logged-in user from session
+    const stored = sessionStorage.getItem('current_user');
+    let u = stored ? JSON.parse(stored) : USER_DATABASE[0];
+    setUser(u);
+
+    // Load from localStorage (dynamic import avoids SSR issues)
+    import('../lib/store').then(store => {
+      setSalaryStatusState(store.getSalaryStatus(u.ippis_id));
+      setSquadRef(store.getSquadRef(u.ippis_id));
+      const hash = sessionStorage.getItem('device_hash');
+      if (hash) store.registerDevice(u.ippis_id, hash, navigator.userAgent.slice(0, 50));
+      const stored_changes = store.getPayrollChanges(u.ippis_id);
+      setPayrollChanges(stored_changes || PAYROLL_CHANGES_SEED.filter(c => c.emp_id === u.ippis_id));
+    });
+
+    const geo = sessionStorage.getItem('otp_geo');
+    if (geo) setGeoPing(JSON.parse(geo));
   }, []);
 
   const statusConfig = {
@@ -26,11 +48,11 @@ export default function DashboardPage() {
     blocked: { label: '🚫 BLOCKED', class: 'badge-blocked', desc: 'Contact HR immediately' },
   };
 
-  const status = statusConfig[currentCycle.status];
+  const status = statusConfig[salaryStatus] || statusConfig['locked'];
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--slate)', display: 'flex', flexDirection: 'column' }}>
-      <GovHeader user={CURRENT_USER} role="employee" />
+      <GovHeader user={user} role="employee" />
 
       <main style={{ flex: 1, maxWidth: '1000px', margin: '0 auto', width: '100%', padding: '24px 16px' }}>
 
@@ -55,8 +77,8 @@ export default function DashboardPage() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
                   <div>
                     <div style={{ fontSize: '11px', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>Net Monthly Salary</div>
-                    <div style={{ fontSize: '32px', fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--navy)' }}>{formatNaira(currentCycle.amount)}</div>
-                    <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '2px' }}>{CURRENT_USER.grade} • {CURRENT_USER.step} • {CURRENT_USER.ministry}</div>
+                    <div style={{ fontSize: '32px', fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--navy)' }}>{formatNaira(user?.salary || currentCycle.amount)}</div>
+                    <div style={{ fontSize: '12px', color: 'var(--muted)', marginTop: '2px' }}>{user?.grade} • {user?.step} • {user?.ministry}</div>
                   </div>
                   <div>
                     <span className={status.class} style={{ fontSize: '12px', padding: '4px 12px' }}>{status.label}</span>
@@ -77,7 +99,7 @@ export default function DashboardPage() {
                 </div>
 
                 {/* CTA Button */}
-                {currentCycle.status === 'locked' ? (
+                {salaryStatus === 'locked' ? (
                   <button
                     onClick={() => router.push('/verify')}
                     className="pulse-green"
@@ -85,10 +107,10 @@ export default function DashboardPage() {
                   >
                     🔐 Verify Identity to Release Funds
                   </button>
-                ) : currentCycle.status === 'disbursed' ? (
+                ) : salaryStatus === 'disbursed' ? (
                   <div style={{ padding: '14px', background: '#f0fdf4', borderRadius: '6px', border: '1px solid #86efac', textAlign: 'center' }}>
                     <div style={{ color: '#166534', fontWeight: 600, fontSize: '14px' }}>✅ Salary Disbursed via Squad</div>
-                    <div style={{ color: '#166534', fontSize: '12px', marginTop: '4px', fontFamily: 'var(--font-mono)' }}>Ref: {currentCycle.squad_ref}</div>
+                    <div style={{ color: '#166534', fontSize: '12px', marginTop: '4px', fontFamily: 'var(--font-mono)' }}>Ref: {squadRef || 'SQD-PENDING'}</div>
                   </div>
                 ) : (
                   <button disabled style={{ width: '100%', padding: '14px', background: '#94a3b8', color: 'white', border: 'none', borderRadius: '6px', fontSize: '15px', fontWeight: 700, cursor: 'not-allowed' }}>
@@ -114,7 +136,7 @@ export default function DashboardPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {PAYROLL_CHANGES.map((ch, i) => (
+                    {payrollChanges.map((ch, i) => (
                       <tr key={ch.id} style={{ borderBottom: '1px solid var(--slate)', background: i % 2 === 0 ? 'white' : 'var(--slate)' }}>
                         <td style={{ padding: '10px 14px', fontFamily: 'var(--font-mono)', fontSize: '12px', color: 'var(--muted)', whiteSpace: 'nowrap' }}>{ch.date}</td>
                         <td style={{ padding: '10px 14px', fontWeight: 600 }}>{ch.type}</td>
@@ -147,7 +169,7 @@ export default function DashboardPage() {
                 <div style={{ color: 'white', fontSize: '13px', fontWeight: 600 }}>Salary Payment History</div>
               </div>
               <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {SALARY_CYCLES.map(cycle => (
+                {SALARY_CYCLES_SEED.map(cycle => (
                   <div key={cycle.month} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', background: 'var(--slate)', borderRadius: '6px', border: '1px solid var(--slate-dark)' }}>
                     <div>
                       <div style={{ fontWeight: 600, fontSize: '13px' }}>{cycle.month}</div>
@@ -174,17 +196,17 @@ export default function DashboardPage() {
               <div style={{ padding: '20px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '16px' }}>
                   <div style={{ width: '64px', height: '64px', background: 'var(--navy)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: '22px', marginBottom: '10px' }}>
-                    {CURRENT_USER.name.split(' ').map(n => n[0]).join('').slice(0,2)}
+                    {user?.name?.split(' ').map(n => n[0]).join('').slice(0,2)}
                   </div>
-                  <div style={{ fontWeight: 700, fontSize: '15px', textAlign: 'center' }}>{CURRENT_USER.name}</div>
-                  <div style={{ fontSize: '12px', color: 'var(--muted)', textAlign: 'center' }}>{CURRENT_USER.department}</div>
+                  <div style={{ fontWeight: 700, fontSize: '15px', textAlign: 'center' }}>{user?.name}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--muted)', textAlign: 'center' }}>{user?.department}</div>
                 </div>
                 {[
-                  ['IPPIS ID', CURRENT_USER.ippis_id],
-                  ['Grade / Step', `${CURRENT_USER.grade} / ${CURRENT_USER.step}`],
-                  ['Ministry', CURRENT_USER.ministry],
-                  ['Bank', CURRENT_USER.bank],
-                  ['Account', CURRENT_USER.account],
+                  ['IPPIS ID', user?.ippis_id],
+                  ['Grade / Step', `${user?.grade} / ${user?.step}`],
+                  ['Ministry', user?.ministry],
+                  ['Bank', user?.bank],
+                  ['Account', user?.account],
                 ].map(([label, value]) => (
                   <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--slate)', fontSize: '12px' }}>
                     <span style={{ color: 'var(--muted)' }}>{label}</span>
@@ -201,8 +223,8 @@ export default function DashboardPage() {
               </div>
               <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 <TrustRow icon="📍" label="Location" value={geoPing ? `${geoPing.lat.toFixed(3)}°, ${geoPing.lng.toFixed(3)}°` : 'Not captured'} status={geoPing ? 'ok' : 'warn'} />
-                <TrustRow icon="📱" label="Device" value={deviceStatus} status="ok" />
-                <TrustRow icon="🌐" label="Network" value={networkStatus} status="ok" />
+                <TrustRow icon="📱" label="Device" value={user?.device_id || "DEV-FP-8847A"} status="ok" />
+                <TrustRow icon="🌐" label="Network" value="Secure" status="ok" />
                 <TrustRow icon="🔐" label="Auth Factor" value="OTP ✓ Password ✓" status="ok" />
               </div>
             </div>
