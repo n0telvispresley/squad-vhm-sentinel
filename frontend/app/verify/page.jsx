@@ -157,15 +157,12 @@ export default function VerifyPage() {
       const { runIntegrityVerification } = await import('../lib/api');
       const verifyRes = await runIntegrityVerification(employeeId, sessionId, lat, lng, deviceHash);
       if (verifyRes.ok) {
-        releaseToken = verifyRes.data?.release_token 
-            || verifyRes.data?.data?.release_token 
-            || "SQUAD_VHM_RELEASE_001";
+        releaseToken = verifyRes.data.release_token;
         console.log('[VHM] Release token received:', releaseToken);
       } else {
         console.warn('[VHM] /verify failed:', verifyRes.error, '— using fallback token');
       }
     } catch (err) {
-      console.log(err)
       console.warn('[VHM] /verify unreachable — fallback mode');
     }
 
