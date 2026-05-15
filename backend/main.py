@@ -41,8 +41,8 @@ sec_service = SecurityService()
 # DATABASE CONNECTION
 # ═══════════════════════════════════════════════
 
-DATABASE_URL = os.getenv("DATABASE_URL", "")
 
+DATABASE_URL = os.getenv("DATABASE_URL", "")
 def get_db():
     """Return a new database connection."""
     conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
