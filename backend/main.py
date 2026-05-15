@@ -30,7 +30,7 @@ app = FastAPI(title="VHM Sentinel Backend", redirect_slashes=False)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["https://vhm-sentinel.vercel.app/", "http://localhost:3000"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -102,8 +102,8 @@ SEED_USERS = [
         "emp_id": "emp_003",
         "ippis_id": "IPPIS-71002-KD",
         "password": "Sentinel@2026",
-        "name": "Mohammed Al-Hameen",
-        "email": "mohammed.al-hameen@pau.edu.ng",
+        "name": "Al-Hameen Mohammed",
+        "email": "al-hameen.mohammed@pau.edu.ng",
         "phone": "+2347069484903",
         "phone_display": "0706 948 **03",
         "role": "employee",
