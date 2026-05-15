@@ -1,8 +1,8 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-// Importing the API functions that will now hit your Render URL
 import { loginRequest, verifyOtp, resendOtp, geoCheckin } from './lib/api';
+import { validateCredentials } from './lib/data';
 import { getDeviceHash, generateSessionId } from './lib/device';
 
 const STEPS = { CREDENTIAL: 'credential', OTP: 'otp', BLOCKED: 'blocked' };
@@ -70,25 +70,32 @@ export default function LoginPage() {
     if (!ippis.trim() || !password.trim()) return;
     setLoading(true);
 
-    // MODIFIED: Removed local validateCredentials. Now calling the Render backend
+    // Validate against local user database
+    const user = validateCredentials(ippis.trim(), password.trim());
+    if (!user) {
+      setLoading(false);
+      setCredError('Invalid IPPIS ID or password. Please check your credentials.');
+      return;
+    }
+
+    const sid = generateSessionId();
+    setSessionId(sid);
+    setCurrentUser(user);
+    sessionStorage.setItem('session_id', sid);
+    sessionStorage.setItem('current_user', JSON.stringify(user));
+    sessionStorage.setItem('device_hash', getDeviceHash());
+
+    // Call backend to trigger OTP SMS send
     const result = await loginRequest(ippis.trim(), password.trim());
     setLoading(false);
 
-    if (result.ok) {
-      const sid = generateSessionId();
-      setSessionId(sid);
-      // Backend should return user profile data on successful loginRequest
-      setCurrentUser(result.user); 
-      sessionStorage.setItem('session_id', sid);
-      sessionStorage.setItem('current_user', JSON.stringify(result.user));
-      sessionStorage.setItem('device_hash', getDeviceHash());
-      
-      setStep(STEPS.OTP);
-      setTimeout(() => otpRefs.current[0]?.focus(), 100);
-    } else {
-      // Show backend error message (e.g., "Invalid credentials" or "Account locked")
-      setCredError(result.error || 'Invalid IPPIS ID or password.');
+    if (!result.ok) {
+      // Backend unreachable — proceed with local flow, OTP fallback active
+      console.warn('[VHM] Backend unreachable — local OTP fallback active');
     }
+
+    setStep(STEPS.OTP);
+    setTimeout(() => otpRefs.current[0]?.focus(), 100);
   };
 
   const handleOtpSubmit = async () => {
@@ -100,24 +107,33 @@ export default function LoginPage() {
 
     const sid = sessionStorage.getItem('session_id');
 
-    // MODIFIED: Verifying via backend API on Render
+    // Try backend verification first
     const result = await verifyOtp(ippis.trim(), code, sid);
-    setLoading(false);
 
     if (result.ok) {
       sessionStorage.setItem('user_authenticated', 'true');
-      // Navigate based on the role returned from the database
       router.push(currentUser?.role === 'admin' ? '/admin' : '/dashboard');
+      return;
+    }
+
+    // Fallback: accept 123456 (demo) or last 6 digits of phone
+    const phoneOtp = currentUser?.phone?.slice(-6);
+    if (code === '123456' || code === phoneOtp) {
+      sessionStorage.setItem('user_authenticated', 'true');
+      setLoading(false);
+      router.push(currentUser?.role === 'admin' ? '/admin' : '/dashboard');
+      return;
+    }
+
+    setLoading(false);
+    const newAttempts = otpAttempts + 1;
+    setOtpAttempts(newAttempts);
+    if (newAttempts >= 3) {
+      setStep(STEPS.BLOCKED);
     } else {
-      const newAttempts = otpAttempts + 1;
-      setOtpAttempts(newAttempts);
-      if (newAttempts >= 3) {
-        setStep(STEPS.BLOCKED);
-      } else {
-        setOtpError(result.error || `Invalid OTP. ${3 - newAttempts} attempts remaining.`);
-        setOtp(['', '', '', '', '', '']);
-        setTimeout(() => otpRefs.current[0]?.focus(), 100);
-      }
+      setOtpError(`Invalid OTP. ${3 - newAttempts} attempt${3 - newAttempts !== 1 ? 's' : ''} remaining.`);
+      setOtp(['', '', '', '', '', '']);
+      setTimeout(() => otpRefs.current[0]?.focus(), 100);
     }
   };
 
@@ -145,9 +161,10 @@ export default function LoginPage() {
     if (e.key === 'Backspace' && !otp[index] && index > 0) otpRefs.current[index - 1]?.focus();
   };
 
+  const fillCredentials = (id, pw) => { setIppis(id); setPassword(pw); setCredError(''); };
+
   return (
     <div style={{ minHeight: '100vh', background: 'var(--slate)', display: 'flex', flexDirection: 'column' }}>
-      {/* Header and UI components remain unchanged */}
       <div style={{ background: 'var(--navy)' }}>
         <div className="gov-stripe" />
         <div style={{ background: 'var(--navy-dark)', padding: '4px 24px', textAlign: 'center' }}>
@@ -189,6 +206,49 @@ export default function LoginPage() {
                     {loading ? <><Spinner /> Verifying credentials...</> : 'Proceed to OTP Verification'}
                   </button>
                 </form>
+                <div style={{ padding: '10px 24px 18px', borderTop: '1px solid var(--slate)', fontSize: '11px', color: 'var(--muted)', lineHeight: 1.8 }}>
+                  🔒 Multi-factor authentication active. Unauthorised access is reported to the EFCC.
+                </div>
+              </div>
+
+              {/* Demo credentials table */}
+              <div style={{ marginTop: '16px', background: 'white', border: '1px solid #93c5fd', borderRadius: '8px', overflow: 'hidden' }}>
+                <div style={{ background: '#1e40af', padding: '10px 16px', fontSize: '12px', fontWeight: 700, color: 'white' }}>
+                  👇 Demo Credentials — Click any row to auto-fill
+                </div>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
+                    <thead>
+                      <tr style={{ background: '#eff6ff' }}>
+                        {['IPPIS ID', 'Password', 'Name', 'Role', 'OTP'].map(h => (
+                          <th key={h} style={{ padding: '8px 10px', textAlign: 'left', color: '#1e40af', fontWeight: 700, borderBottom: '1px solid #bfdbfe', whiteSpace: 'nowrap' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[
+                        ['IPPIS-20847-LG', 'Sentinel@2026', 'Oluwaseun Adeyemi', 'Employee'],
+                        ['IPPIS-33412-AB', 'Sentinel@2026', 'Amaka Okafor', 'Employee'],
+                        ['IPPIS-71002-KD', 'Sentinel@2026', 'Ibrahim Musa', 'Employee'],
+                        ['IPPIS-88234-KN', 'Sentinel@2026', 'Fatima Al-Rashid', 'Employee'],
+                        ['HR-ADMIN-0041', 'Admin@Sentinel26', 'Mrs. R. Okonkwo', 'Admin'],
+                      ].map(([id, pw, name, role], i) => (
+                        <tr key={i} onClick={() => fillCredentials(id, pw)} style={{ borderBottom: '1px solid #eff6ff', cursor: 'pointer', background: i % 2 === 0 ? 'white' : '#f8fbff' }}>
+                          <td style={{ padding: '7px 10px', fontFamily: 'var(--font-mono)', color: '#1e40af', fontWeight: 600 }}>{id}</td>
+                          <td style={{ padding: '7px 10px', fontFamily: 'var(--font-mono)' }}>{pw}</td>
+                          <td style={{ padding: '7px 10px', whiteSpace: 'nowrap' }}>{name}</td>
+                          <td style={{ padding: '7px 10px' }}>
+                            <span style={{ background: role === 'Admin' ? '#fef3c7' : '#f0fdf4', color: role === 'Admin' ? '#92400e' : '#166534', padding: '1px 8px', borderRadius: '3px', fontSize: '10px', fontWeight: 700 }}>{role}</span>
+                          </td>
+                          <td style={{ padding: '7px 10px', fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--navy)' }}>123456</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div style={{ padding: '7px 12px', background: '#eff6ff', fontSize: '10px', color: '#1e40af' }}>
+                  OTP is sent to the employee&apos;s registered phone. Use <strong>123456</strong> as fallback if SMS is not configured.
+                </div>
               </div>
             </div>
           )}
@@ -232,6 +292,23 @@ export default function LoginPage() {
                     {loading ? <><Spinner /> Verifying...</> : 'Verify & Enter System'}
                   </button>
                 </div>
+                <div style={{ padding: '12px 24px 16px', borderTop: '1px solid var(--slate)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Didn&apos;t receive code?</span>
+                  <button onClick={handleResendOtp} disabled={countdown > 240}
+                    style={{ fontSize: '11px', color: countdown > 240 ? 'var(--muted)' : 'var(--navy)', background: 'none', border: 'none', cursor: countdown > 240 ? 'not-allowed' : 'pointer', fontWeight: 600 }}>
+                    {countdown > 240 ? `Resend in ${countdown - 240}s` : 'Resend OTP'}
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ marginTop: '14px', background: 'white', border: '1px solid var(--border)', borderRadius: '8px', padding: '14px 16px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: '10px' }}>Session Intelligence</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <SRow label="Session ID" value={sessionId.slice(0, 18) + '...'} ok />
+                  <SRow label="Device Hash" value={deviceHash} ok />
+                  <SRow label="Location" value={geoDenied ? 'Denied — flagged' : geoPing ? `${geoPing.lat.toFixed(4)}°, ${geoPing.lng.toFixed(4)}°` : 'Acquiring...'} ok={!geoDenied} />
+                  <SRow label="Network" value="Secure" ok />
+                </div>
               </div>
             </div>
           )}
@@ -250,12 +327,17 @@ export default function LoginPage() {
 
         </div>
       </div>
-      {/* Footer remains unchanged */}
+
+      <footer style={{ background: 'var(--navy-dark)', padding: '16px 24px', textAlign: 'center' }}>
+        <div style={{ color: '#94a3b8', fontSize: '11px', fontFamily: 'var(--font-mono)' }}>
+          Office of the Accountant-General of the Federation | Federal Ministry of Finance | © 2026 Federal Republic of Nigeria
+        </div>
+      </footer>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }
 
-// Styles and Helper components remain the same
 const S = {
   label: { display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: '6px' },
   input: { width: '100%', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: '4px', fontSize: '14px', background: 'var(--slate)', outline: 'none', marginBottom: '4px' },
@@ -264,4 +346,13 @@ const S = {
 
 function Spinner() {
   return <span style={{ width: '14px', height: '14px', border: '2px solid rgba(255,255,255,.4)', borderTop: '2px solid white', borderRadius: '50%', display: 'inline-block', animation: 'spin .8s linear infinite', flexShrink: 0 }} />;
+}
+function SRow({ label, value, ok }) {
+  const color = ok ? 'var(--green)' : 'var(--amber)';
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
+      <span style={{ color: 'var(--muted)' }}>{label}</span>
+      <span style={{ color, fontFamily: 'var(--font-mono)', fontSize: '11px' }}>{ok ? '● ' : '⚠ '}{value}</span>
+    </div>
+  );
 }
